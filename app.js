@@ -47,14 +47,14 @@ Your task is to:
 Text to format:
 ${text}`;
 
-            const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+            const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro'];
             let resultText = '';
             let success = false;
             let lastError = '';
 
             for (const model of models) {
                 try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
