@@ -3,7 +3,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordCount = document.getElementById('word-count');
     const docStatus = document.getElementById('doc-status');
     const btnAiGenerate = document.getElementById('btn-ai-generate');
+    const downloadSection = document.getElementById('download-section');
+    const btnDownloadWord = document.getElementById('btn-download-word');
+    const btnDownloadPdf = document.getElementById('btn-download-pdf');
     const loader = document.getElementById('loader');
+
+    let currentDocData = null;
 
     // Update word count
     textArea.addEventListener('input', () => {
@@ -12,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
     });
 
-    // AI Generate & Download Official Word Document
+    // AI Generate Document Structure
     btnAiGenerate.addEventListener('click', async () => {
         const text = textArea.value;
         if (!text.trim()) return;
@@ -23,17 +28,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        loader.querySelector('p').textContent = 'AI is formatting and generating your official Word document...';
+        loader.querySelector('p').textContent = 'AI is formatting your official document...';
         loader.classList.remove('hidden');
+        downloadSection.classList.add('hidden');
 
         try {
             const prompt = `You are a master legal and official document drafter.
-I will provide you with a translated text of an old document (Property Deed, Nikah Nama, or Agreement).
+I will provide you with a translated text of an old document.
 Your task:
 1. Identify the document type and a professional official title.
-2. Draft a beautifully structured, formal English version of this document.
-3. Return ONLY a JSON object. If you add any conversational text, put the JSON inside a code block.
-JSON structure:
+2. Draft a beautifully structured, formal English version.
+3. Return ONLY a JSON object.
+Structure:
 {
   "docType": "Short Type",
   "title": "FULL OFFICIAL TITLE IN CAPS",
@@ -58,15 +64,12 @@ ${text}`;
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: prompt }] }]
-                            // REMOVED responseMimeType to fix compatibility issues
                         })
                     });
 
                     if (response.ok) {
                         const data = await response.json();
                         let rawText = data.candidates[0].content.parts[0].text;
-                        
-                        // Extract JSON if it's wrapped in markdown code blocks
                         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
                         if (jsonMatch) {
                             jsonResponse = JSON.parse(jsonMatch[0]);
@@ -84,9 +87,9 @@ ${text}`;
 
             if (!success) throw new Error(lastError || 'AI failed to generate document.');
             
-            docStatus.textContent = `Generating Word File...`;
-            generateWordFile(jsonResponse);
-            docStatus.textContent = `Ready`;
+            currentDocData = jsonResponse;
+            docStatus.textContent = `Generated: ${jsonResponse.docType}`;
+            downloadSection.classList.remove('hidden');
             
         } catch (error) {
             console.error('Generation Error:', error);
@@ -96,26 +99,34 @@ ${text}`;
         }
     });
 
+    // Word Download
+    btnDownloadWord.addEventListener('click', () => {
+        if (!currentDocData) return;
+        generateWordFile(currentDocData);
+    });
+
+    // PDF Download
+    btnDownloadPdf.addEventListener('click', () => {
+        if (!currentDocData) return;
+        generatePdfFile(currentDocData);
+    });
+
     const generateWordFile = (data) => {
         const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = window.docx;
-        
         const children = [];
 
-        // Title
         children.push(new Paragraph({
             children: [new TextRun({ text: data.title, bold: true, size: 32 })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 400 }
         }));
 
-        // Header
         children.push(new Paragraph({
             children: [new TextRun({ text: data.header, italic: true, size: 20 })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 300 }
         }));
 
-        // Sections
         data.sections.forEach(s => {
             if (s.heading) {
                 children.push(new Paragraph({
@@ -130,7 +141,6 @@ ${text}`;
             }));
         });
 
-        // Signatures Table
         const rows = [];
         for (let i = 0; i < data.signatures.length; i += 2) {
             const cells = [
@@ -146,7 +156,6 @@ ${text}`;
                     borders: { top: { style: BorderStyle.NIL }, bottom: { style: BorderStyle.NIL }, left: { style: BorderStyle.NIL }, right: { style: BorderStyle.NIL } }
                 })
             ];
-
             if (data.signatures[i + 1]) {
                 cells.push(new TableCell({
                     children: [
@@ -165,14 +174,11 @@ ${text}`;
             rows.push(new TableRow({ children: cells }));
         }
 
-        const sigTable = new Table({
+        children.push(new Table({
             rows: rows,
             width: { size: 100, type: WidthType.PERCENTAGE },
-        });
+        }));
 
-        children.push(sigTable);
-
-        // Footer
         children.push(new Paragraph({
             children: [new TextRun({ text: data.footer, size: 16, color: "666666" })],
             alignment: AlignmentType.CENTER,
@@ -199,5 +205,49 @@ ${text}`;
         Packer.toBlob(doc).then(blob => {
             saveAs(blob, `${data.docType.replace(/\s+/g, '_')}_Official.docx`);
         });
+    };
+
+    const generatePdfFile = (data) => {
+        // Create in-memory element for PDF generation
+        const temp = document.createElement('div');
+        temp.style.width = '8.5in';
+        temp.style.padding = '0.75in';
+        temp.style.background = 'white';
+        temp.style.color = 'black';
+        temp.style.fontFamily = 'serif';
+        temp.style.lineHeight = '1.5';
+        temp.style.border = '2px solid black';
+        
+        let sectionsHtml = data.sections.map(s => `
+            <div style="margin-bottom: 1.5rem;">
+                ${s.heading ? `<h4 style="margin-bottom: 0.5rem; text-decoration: underline;">${s.heading}</h4>` : ''}
+                <p style="text-align: justify; margin: 0;">${s.content}</p>
+            </div>
+        `).join('');
+
+        let sigHtml = data.signatures.map(s => `
+            <div style="margin-top: 3rem; border-top: 1px solid black; width: 45%; padding-top: 0.5rem; font-size: 0.9rem;">${s}</div>
+        `).join('');
+
+        temp.innerHTML = `
+            <h2 style="text-align: center; margin-bottom: 0.5rem; font-size: 1.6rem;">${data.title}</h2>
+            <p style="text-align: center; font-style: italic; font-size: 0.9rem; margin-bottom: 2rem;">${data.header}</p>
+            ${sectionsHtml}
+            <div style="display: flex; flex-wrap: wrap; gap: 10%; margin-top: 2rem;">
+                ${sigHtml}
+            </div>
+            <div style="margin-top: 4rem; text-align: center; font-size: 0.8rem; color: #555;">
+                ${data.footer}
+            </div>
+        `;
+
+        const opt = {
+            margin:       0.5,
+            filename:     `${data.docType.replace(/\s+/g, '_')}_Official.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(temp).save();
     };
 });
