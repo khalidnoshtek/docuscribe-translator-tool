@@ -10,14 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentDocData = null;
 
-    // Update word count
+    // Word Count
     textArea.addEventListener('input', () => {
         const text = textArea.value;
         const words = text.trim() ? text.trim().split(/\s+/).length : 0;
         wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
     });
 
-    // AI Generate Document Structure
+    // AI Generate
     btnAiGenerate.addEventListener('click', async () => {
         const text = textArea.value;
         if (!text.trim()) return;
@@ -34,12 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const prompt = `You are an elite legal document architect.
-I will provide you with a rough translation of an old document (e.g., Nikah Nama, Property Deed, Legal Agreement).
-Your task:
-1. Reconstruct it into a prestigious, official document with a sophisticated layout.
-2. Use high-level legal English.
-3. Structure it into logical sections with clear headings.
-4. Return ONLY a JSON object.
+I will provide you with a rough translation of an old document.
+Reconstruct it into a prestigious, official legal document.
+Return ONLY a JSON object.
 
 JSON Structure:
 {
@@ -48,20 +45,15 @@ JSON Structure:
   "reference": "Ref: DOC-${Math.floor(Math.random()*9000)+1000}",
   "header": "OFFICIAL CERTIFIED TRANSLATION",
   "contentSections": [
-    { "title": "I. PREAMBLE / PARTIES", "text": "..." },
-    { "title": "II. SUBJECT MATTER", "text": "..." },
-    { "title": "III. TERMS AND CONDITIONS", "text": "..." }
+    { "title": "I. PREAMBLE", "text": "..." }
   ],
   "signatures": [
-    {"label": "Executing Party", "name": "..."},
-    {"label": "Recipient/Second Party", "name": "..."},
-    {"label": "Witness 1", "name": "..."},
-    {"label": "Witness 2", "name": "..."}
+    {"label": "Party 1", "name": "..."}
   ],
-  "footer": "This document is a certified translation of the original record."
+  "footer": "This is a certified translation."
 }
 
-Text to process:
+Text:
 ${text}`;
 
             const models = ['gemini-3-flash', 'gemini-3-pro', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash'];
@@ -74,9 +66,7 @@ ${text}`;
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }]
-                        })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                     });
 
                     if (response.ok) {
@@ -97,14 +87,12 @@ ${text}`;
                 }
             }
 
-            if (!success) throw new Error(lastError || 'AI failed to generate document.');
-            
+            if (!success) throw new Error(lastError || 'AI failed to respond.');
             currentDocData = jsonResponse;
             docStatus.textContent = `Generated: ${jsonResponse.docType}`;
             downloadSection.classList.remove('hidden');
             
         } catch (error) {
-            console.error('Generation Error:', error);
             alert('Error: ' + error.message);
         } finally {
             loader.classList.add('hidden');
@@ -114,51 +102,38 @@ ${text}`;
     // Word Download
     btnDownloadWord.addEventListener('click', () => {
         if (!currentDocData) return;
-        try {
-            generateWordFile(currentDocData);
-        } catch (e) {
-            console.error("Word Export Error:", e);
-            alert("Word export failed. Error: " + e.message);
+        
+        // Find docx library robustly
+        const docxLib = window.docx || docx;
+        if (!docxLib) {
+            alert("The Word generation library (docx) failed to load. Please refresh the page.");
+            return;
         }
-    });
 
-    // PDF Download
-    btnDownloadPdf.addEventListener('click', () => {
-        if (!currentDocData) return;
-        generatePdfFile(currentDocData);
-    });
-
-    const generateWordFile = (data) => {
-        // Use window.docx explicitly to avoid scope issues
-        const lib = window.docx;
-        if (!lib) throw new Error("docx library not loaded correctly.");
-
-        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, Border } = lib;
+        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = docxLib;
+        
         const children = [];
 
-        // Header Label
+        // Design
         children.push(new Paragraph({
-            children: [new TextRun({ text: data.header, bold: true, size: 20, color: "555555" })],
+            children: [new TextRun({ text: currentDocData.header, bold: true, size: 20, color: "555555" })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 100 }
         }));
 
-        // Reference
         children.push(new Paragraph({
-            children: [new TextRun({ text: data.reference, size: 18, color: "888888" })],
+            children: [new TextRun({ text: currentDocData.reference, size: 18, color: "888888" })],
             alignment: AlignmentType.RIGHT,
             spacing: { after: 300 }
         }));
 
-        // Main Title
         children.push(new Paragraph({
-            children: [new TextRun({ text: data.title, bold: true, size: 36, underline: { type: "double" } })],
+            children: [new TextRun({ text: currentDocData.title, bold: true, size: 36, underline: { type: "double" } })],
             alignment: AlignmentType.CENTER,
             spacing: { after: 600 }
         }));
 
-        // Content Sections
-        data.contentSections.forEach(s => {
+        currentDocData.contentSections.forEach(s => {
             children.push(new Paragraph({
                 children: [new TextRun({ text: s.title, bold: true, size: 24 })],
                 spacing: { before: 300, after: 150 },
@@ -172,37 +147,33 @@ ${text}`;
             }));
         });
 
-        // Signatures Grid
         const rows = [];
-        for (let i = 0; i < data.signatures.length; i += 2) {
+        for (let i = 0; i < currentDocData.signatures.length; i += 2) {
             const cells = [
                 new TableCell({
                     children: [
                         new Paragraph({ spacing: { before: 1200 } }),
                         new Paragraph({
-                            border: { top: { style: BorderStyle.SINGLE, size: 1, color: "000000" } },
+                            border: { top: { style: BorderStyle.SINGLE, size: 1 } },
                             children: [
-                                new TextRun({ text: data.signatures[i].label + ": ", bold: true, size: 18 }),
-                                new TextRun({ text: data.signatures[i].name, size: 18 })
-                            ],
-                            spacing: { before: 100 }
+                                new TextRun({ text: currentDocData.signatures[i].label + ": ", bold: true, size: 18 }),
+                                new TextRun({ text: currentDocData.signatures[i].name, size: 18 })
+                            ]
                         })
                     ],
                     borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL }
                 })
             ];
-
-            if (data.signatures[i + 1]) {
+            if (currentDocData.signatures[i + 1]) {
                 cells.push(new TableCell({
                     children: [
                         new Paragraph({ spacing: { before: 1200 } }),
                         new Paragraph({
-                            border: { top: { style: BorderStyle.SINGLE, size: 1, color: "000000" } },
+                            border: { top: { style: BorderStyle.SINGLE, size: 1 } },
                             children: [
-                                new TextRun({ text: data.signatures[i+1].label + ": ", bold: true, size: 18 }),
-                                new TextRun({ text: data.signatures[i+1].name, size: 18 })
-                            ],
-                            spacing: { before: 100 }
+                                new TextRun({ text: currentDocData.signatures[i+1].label + ": ", bold: true, size: 18 }),
+                                new TextRun({ text: currentDocData.signatures[i+1].name, size: 18 })
+                            ]
                         })
                     ],
                     borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL }
@@ -215,13 +186,11 @@ ${text}`;
 
         children.push(new Table({
             rows: rows,
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            margins: { top: 400 }
+            width: { size: 100, type: WidthType.PERCENTAGE }
         }));
 
-        // Footer
         children.push(new Paragraph({
-            children: [new TextRun({ text: data.footer, size: 16, color: "999999", italic: true })],
+            children: [new TextRun({ text: currentDocData.footer, size: 16, color: "999999", italic: true })],
             alignment: AlignmentType.CENTER,
             spacing: { before: 1500 }
         }));
@@ -244,22 +213,17 @@ ${text}`;
         });
 
         Packer.toBlob(doc).then(blob => {
-            if (window.saveAs) {
-                window.saveAs(blob, `${data.docType.replace(/\s+/g, '_')}_Official.docx`);
-            } else {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${data.docType.replace(/\s+/g, '_')}_Official.docx`;
-                a.click();
-            }
+            saveAs(blob, `${currentDocData.docType.replace(/\s+/g, '_')}_Official.docx`);
         });
-    };
+    });
 
-    const generatePdfFile = (data) => {
-        // Create in-memory element for PDF generation with fixed A4 dimensions to prevent cropping
+    // PDF Download
+    btnDownloadPdf.addEventListener('click', () => {
+        if (!currentDocData) return;
+        
         const temp = document.createElement('div');
-        temp.style.width = '794px'; // A4 width at 96 DPI
+        temp.id = 'pdf-render-target';
+        temp.style.width = '794px'; 
         temp.style.padding = '60px';
         temp.style.background = 'white';
         temp.style.color = '#111';
@@ -267,46 +231,53 @@ ${text}`;
         temp.style.lineHeight = '1.6';
         temp.style.border = '4px double #333';
         temp.style.boxSizing = 'border-box';
-        temp.style.position = 'absolute';
-        temp.style.left = '-10000px'; // Hide off-screen
-        document.body.appendChild(temp);
+        temp.style.position = 'fixed';
+        temp.style.top = '0';
+        temp.style.left = '0';
+        temp.style.opacity = '0'; // Invisible but in DOM
+        temp.style.zIndex = '-1000';
         
-        let sectionsHtml = data.contentSections.map(s => `
+        let sectionsHtml = currentDocData.contentSections.map(s => `
             <div style="margin-bottom: 2rem;">
                 <h4 style="margin-bottom: 0.5rem; font-size: 1.2rem; border-bottom: 1px solid #ddd;">${s.title}</h4>
                 <p style="text-align: justify; margin: 0; padding-left: 20px;">${s.text}</p>
             </div>
         `).join('');
 
-        let sigHtml = data.signatures.map(s => `
+        let sigHtml = currentDocData.signatures.map(s => `
             <div style="margin-top: 4rem; border-top: 1px solid #000; width: 42%; padding-top: 0.5rem; font-size: 0.95rem;">
                 <strong>${s.label}:</strong> ${s.name}
             </div>
         `).join('');
 
         temp.innerHTML = `
-            <div style="text-align: center; color: #666; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem;">${data.header}</div>
-            <div style="text-align: right; color: #888; font-size: 0.75rem; margin-bottom: 1rem;">${data.reference}</div>
-            <h1 style="text-align: center; margin-bottom: 3rem; font-size: 2rem; text-decoration: underline;">${data.title}</h1>
+            <div style="text-align: center; color: #666; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem;">${currentDocData.header}</div>
+            <div style="text-align: right; color: #888; font-size: 0.75rem; margin-bottom: 1rem;">${currentDocData.reference}</div>
+            <h1 style="text-align: center; margin-bottom: 3rem; font-size: 2rem; text-decoration: underline;">${currentDocData.title}</h1>
             ${sectionsHtml}
             <div style="display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 2rem;">
                 ${sigHtml}
             </div>
             <div style="margin-top: 5rem; text-align: center; font-size: 0.8rem; color: #777; border-top: 1px solid #eee; padding-top: 1rem;">
-                <em>${data.footer}</em>
+                <em>${currentDocData.footer}</em>
             </div>
         `;
 
-        const opt = {
-            margin:       0,
-            filename:     `${data.docType.replace(/\s+/g, '_')}_Official.pdf`,
-            image:        { type: 'jpeg', quality: 1.0 },
-            html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
-            jsPDF:        { unit: 'px', format: [794, 1123], orientation: 'portrait' }
-        };
+        document.body.appendChild(temp);
 
-        html2pdf().set(opt).from(temp).toPdf().get('pdf').then(pdf => {
-            document.body.removeChild(temp);
-        }).save();
-    };
+        // Wait for rendering then generate
+        setTimeout(() => {
+            const opt = {
+                margin:       0,
+                filename:     `${currentDocData.docType.replace(/\s+/g, '_')}_Official.pdf`,
+                image:        { type: 'jpeg', quality: 1.0 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'px', format: [794, 1123], orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(temp).save().then(() => {
+                document.body.removeChild(temp);
+            });
+        }, 500);
+    });
 });
