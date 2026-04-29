@@ -28,25 +28,37 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        loader.querySelector('p').textContent = 'AI is formatting your official document...';
+        loader.querySelector('p').textContent = 'AI is drafting your professional document...';
         loader.classList.remove('hidden');
         downloadSection.classList.add('hidden');
 
         try {
-            const prompt = `You are a master legal and official document drafter.
-I will provide you with a translated text of an old document.
+            const prompt = `You are an elite legal document architect.
+I will provide you with a rough translation of an old document (e.g., Nikah Nama, Property Deed, Legal Agreement).
 Your task:
-1. Identify the document type and a professional official title.
-2. Draft a beautifully structured, formal English version.
-3. Return ONLY a JSON object.
-Structure:
+1. Reconstruct it into a prestigious, official document with a sophisticated layout.
+2. Use high-level legal English.
+3. Structure it into logical sections with clear headings.
+4. Return ONLY a JSON object.
+
+JSON Structure:
 {
-  "docType": "Short Type",
-  "title": "FULL OFFICIAL TITLE IN CAPS",
-  "header": "Header info",
-  "sections": [{ "heading": "...", "content": "..." }],
-  "signatures": ["Party 1", "Party 2", "Witness 1", "Witness 2"],
-  "footer": "Official footer"
+  "docType": "Short Category",
+  "title": "PRESTIGIOUS OFFICIAL TITLE",
+  "reference": "Ref: DOC-${Math.floor(Math.random()*9000)+1000}",
+  "header": "OFFICIAL CERTIFIED TRANSLATION",
+  "contentSections": [
+    { "title": "I. PREAMBLE / PARTIES", "text": "..." },
+    { "title": "II. SUBJECT MATTER", "text": "..." },
+    { "title": "III. TERMS AND CONDITIONS", "text": "..." }
+  ],
+  "signatures": [
+    {"label": "Executing Party", "name": "..."},
+    {"label": "Recipient/Second Party", "name": "..."},
+    {"label": "Witness 1", "name": "..."},
+    {"label": "Witness 2", "name": "..."}
+  ],
+  "footer": "This document is a certified translation of the original record."
 }
 
 Text to process:
@@ -102,7 +114,12 @@ ${text}`;
     // Word Download
     btnDownloadWord.addEventListener('click', () => {
         if (!currentDocData) return;
-        generateWordFile(currentDocData);
+        try {
+            generateWordFile(currentDocData);
+        } catch (e) {
+            console.error("Word Export Error:", e);
+            alert("Word export failed. Error: " + e.message);
+        }
     });
 
     // PDF Download
@@ -112,64 +129,86 @@ ${text}`;
     });
 
     const generateWordFile = (data) => {
-        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = window.docx;
+        // Use window.docx explicitly to avoid scope issues
+        const lib = window.docx;
+        if (!lib) throw new Error("docx library not loaded correctly.");
+
+        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, Border } = lib;
         const children = [];
 
+        // Header Label
         children.push(new Paragraph({
-            children: [new TextRun({ text: data.title, bold: true, size: 32 })],
+            children: [new TextRun({ text: data.header, bold: true, size: 20, color: "555555" })],
             alignment: AlignmentType.CENTER,
-            spacing: { after: 400 }
+            spacing: { after: 100 }
         }));
 
+        // Reference
         children.push(new Paragraph({
-            children: [new TextRun({ text: data.header, italic: true, size: 20 })],
-            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: data.reference, size: 18, color: "888888" })],
+            alignment: AlignmentType.RIGHT,
             spacing: { after: 300 }
         }));
 
-        data.sections.forEach(s => {
-            if (s.heading) {
-                children.push(new Paragraph({
-                    children: [new TextRun({ text: s.heading, bold: true, size: 24, underline: {} })],
-                    spacing: { before: 200, after: 120 }
-                }));
-            }
+        // Main Title
+        children.push(new Paragraph({
+            children: [new TextRun({ text: data.title, bold: true, size: 36, underline: { type: "double" } })],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 600 }
+        }));
+
+        // Content Sections
+        data.contentSections.forEach(s => {
             children.push(new Paragraph({
-                children: [new TextRun({ text: s.content, size: 24 })],
+                children: [new TextRun({ text: s.title, bold: true, size: 24 })],
+                spacing: { before: 300, after: 150 },
+                border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } }
+            }));
+            children.push(new Paragraph({
+                children: [new TextRun({ text: s.text, size: 24 })],
                 alignment: AlignmentType.JUSTIFIED,
-                spacing: { after: 200 }
+                spacing: { after: 200 },
+                indent: { left: 400 }
             }));
         });
 
+        // Signatures Grid
         const rows = [];
         for (let i = 0; i < data.signatures.length; i += 2) {
             const cells = [
                 new TableCell({
                     children: [
-                        new Paragraph({ spacing: { before: 800 } }),
+                        new Paragraph({ spacing: { before: 1200 } }),
                         new Paragraph({
-                            border: { top: { style: BorderStyle.SINGLE, size: 1 } },
-                            children: [new TextRun({ text: data.signatures[i], size: 20 })],
+                            border: { top: { style: BorderStyle.SINGLE, size: 1, color: "000000" } },
+                            children: [
+                                new TextRun({ text: data.signatures[i].label + ": ", bold: true, size: 18 }),
+                                new TextRun({ text: data.signatures[i].name, size: 18 })
+                            ],
                             spacing: { before: 100 }
                         })
                     ],
-                    borders: { top: { style: BorderStyle.NIL }, bottom: { style: BorderStyle.NIL }, left: { style: BorderStyle.NIL }, right: { style: BorderStyle.NIL } }
+                    borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL }
                 })
             ];
+
             if (data.signatures[i + 1]) {
                 cells.push(new TableCell({
                     children: [
-                        new Paragraph({ spacing: { before: 800 } }),
+                        new Paragraph({ spacing: { before: 1200 } }),
                         new Paragraph({
-                            border: { top: { style: BorderStyle.SINGLE, size: 1 } },
-                            children: [new TextRun({ text: data.signatures[i + 1], size: 20 })],
+                            border: { top: { style: BorderStyle.SINGLE, size: 1, color: "000000" } },
+                            children: [
+                                new TextRun({ text: data.signatures[i+1].label + ": ", bold: true, size: 18 }),
+                                new TextRun({ text: data.signatures[i+1].name, size: 18 })
+                            ],
                             spacing: { before: 100 }
                         })
                     ],
-                    borders: { top: { style: BorderStyle.NIL }, bottom: { style: BorderStyle.NIL }, left: { style: BorderStyle.NIL }, right: { style: BorderStyle.NIL } }
+                    borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL }
                 }));
             } else {
-                cells.push(new TableCell({ children: [] }));
+                cells.push(new TableCell({ children: [], borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL } }));
             }
             rows.push(new TableRow({ children: cells }));
         }
@@ -177,12 +216,14 @@ ${text}`;
         children.push(new Table({
             rows: rows,
             width: { size: 100, type: WidthType.PERCENTAGE },
+            margins: { top: 400 }
         }));
 
+        // Footer
         children.push(new Paragraph({
-            children: [new TextRun({ text: data.footer, size: 16, color: "666666" })],
+            children: [new TextRun({ text: data.footer, size: 16, color: "999999", italic: true })],
             alignment: AlignmentType.CENTER,
-            spacing: { before: 1000 }
+            spacing: { before: 1500 }
         }));
 
         const doc = new Document({
@@ -191,10 +232,10 @@ ${text}`;
                     page: {
                         margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
                         borders: {
-                            pageBorderLeft: { style: BorderStyle.SINGLE, size: 12, space: 24, color: "000000" },
-                            pageBorderRight: { style: BorderStyle.SINGLE, size: 12, space: 24, color: "000000" },
-                            pageBorderTop: { style: BorderStyle.SINGLE, size: 12, space: 24, color: "000000" },
-                            pageBorderBottom: { style: BorderStyle.SINGLE, size: 12, space: 24, color: "000000" },
+                            pageBorderLeft: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+                            pageBorderRight: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+                            pageBorderTop: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+                            pageBorderBottom: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
                         }
                     }
                 },
@@ -203,51 +244,69 @@ ${text}`;
         });
 
         Packer.toBlob(doc).then(blob => {
-            saveAs(blob, `${data.docType.replace(/\s+/g, '_')}_Official.docx`);
+            if (window.saveAs) {
+                window.saveAs(blob, `${data.docType.replace(/\s+/g, '_')}_Official.docx`);
+            } else {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${data.docType.replace(/\s+/g, '_')}_Official.docx`;
+                a.click();
+            }
         });
     };
 
     const generatePdfFile = (data) => {
-        // Create in-memory element for PDF generation
+        // Create in-memory element for PDF generation with fixed A4 dimensions to prevent cropping
         const temp = document.createElement('div');
-        temp.style.width = '8.5in';
-        temp.style.padding = '0.75in';
+        temp.style.width = '794px'; // A4 width at 96 DPI
+        temp.style.padding = '60px';
         temp.style.background = 'white';
-        temp.style.color = 'black';
-        temp.style.fontFamily = 'serif';
-        temp.style.lineHeight = '1.5';
-        temp.style.border = '2px solid black';
+        temp.style.color = '#111';
+        temp.style.fontFamily = "'Times New Roman', serif";
+        temp.style.lineHeight = '1.6';
+        temp.style.border = '4px double #333';
+        temp.style.boxSizing = 'border-box';
+        temp.style.position = 'absolute';
+        temp.style.left = '-10000px'; // Hide off-screen
+        document.body.appendChild(temp);
         
-        let sectionsHtml = data.sections.map(s => `
-            <div style="margin-bottom: 1.5rem;">
-                ${s.heading ? `<h4 style="margin-bottom: 0.5rem; text-decoration: underline;">${s.heading}</h4>` : ''}
-                <p style="text-align: justify; margin: 0;">${s.content}</p>
+        let sectionsHtml = data.contentSections.map(s => `
+            <div style="margin-bottom: 2rem;">
+                <h4 style="margin-bottom: 0.5rem; font-size: 1.2rem; border-bottom: 1px solid #ddd;">${s.title}</h4>
+                <p style="text-align: justify; margin: 0; padding-left: 20px;">${s.text}</p>
             </div>
         `).join('');
 
         let sigHtml = data.signatures.map(s => `
-            <div style="margin-top: 3rem; border-top: 1px solid black; width: 45%; padding-top: 0.5rem; font-size: 0.9rem;">${s}</div>
+            <div style="margin-top: 4rem; border-top: 1px solid #000; width: 42%; padding-top: 0.5rem; font-size: 0.95rem;">
+                <strong>${s.label}:</strong> ${s.name}
+            </div>
         `).join('');
 
         temp.innerHTML = `
-            <h2 style="text-align: center; margin-bottom: 0.5rem; font-size: 1.6rem;">${data.title}</h2>
-            <p style="text-align: center; font-style: italic; font-size: 0.9rem; margin-bottom: 2rem;">${data.header}</p>
+            <div style="text-align: center; color: #666; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.5rem;">${data.header}</div>
+            <div style="text-align: right; color: #888; font-size: 0.75rem; margin-bottom: 1rem;">${data.reference}</div>
+            <h1 style="text-align: center; margin-bottom: 3rem; font-size: 2rem; text-decoration: underline;">${data.title}</h1>
             ${sectionsHtml}
-            <div style="display: flex; flex-wrap: wrap; gap: 10%; margin-top: 2rem;">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 2rem;">
                 ${sigHtml}
             </div>
-            <div style="margin-top: 4rem; text-align: center; font-size: 0.8rem; color: #555;">
-                ${data.footer}
+            <div style="margin-top: 5rem; text-align: center; font-size: 0.8rem; color: #777; border-top: 1px solid #eee; padding-top: 1rem;">
+                <em>${data.footer}</em>
             </div>
         `;
 
         const opt = {
-            margin:       0.5,
+            margin:       0,
             filename:     `${data.docType.replace(/\s+/g, '_')}_Official.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
-            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            image:        { type: 'jpeg', quality: 1.0 },
+            html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+            jsPDF:        { unit: 'px', format: [794, 1123], orientation: 'portrait' }
         };
-        html2pdf().set(opt).from(temp).save();
+
+        html2pdf().set(opt).from(temp).toPdf().get('pdf').then(pdf => {
+            document.body.removeChild(temp);
+        }).save();
     };
 });
