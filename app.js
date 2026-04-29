@@ -10,20 +10,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentDocData = null;
 
-    // Library Check
+    // Robust library check
     const getDocxLib = () => {
-        // Try multiple global names used by different CDN versions
         return window.docx || (typeof docx !== 'undefined' ? docx : null);
     };
 
-    // Update word count
+    // Word Count
     textArea.addEventListener('input', () => {
         const text = textArea.value;
         const words = text.trim() ? text.trim().split(/\s+/).length : 0;
         wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
     });
 
-    // AI Generate Document Structure
+    // AI Generate
     btnAiGenerate.addEventListener('click', async () => {
         const text = textArea.value;
         if (!text.trim()) return;
@@ -35,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
             else return;
         }
 
-        loader.querySelector('p').textContent = 'AI is architecting your official document...';
         loader.classList.remove('hidden');
         downloadSection.classList.add('hidden');
 
@@ -59,6 +57,7 @@ JSON Structure:
 Text to process:
 ${text}`;
 
+            // Model Priority List (v1beta endpoint)
             const models = [
                 'gemini-1.5-flash',
                 'gemini-1.5-pro',
@@ -66,6 +65,7 @@ ${text}`;
                 'gemini-1.5-flash-latest',
                 'gemini-1.5-pro-latest'
             ];
+            
             let jsonResponse = null;
             let success = false;
             let lastError = '';
@@ -91,19 +91,17 @@ ${text}`;
                         const err = await response.json();
                         lastError = err.error?.message || response.statusText;
                     }
-                } catch (e) {
-                    lastError = e.message;
-                }
+                } catch (e) { lastError = e.message; }
             }
 
-            if (!success) throw new Error(lastError || 'AI Service Error');
+            if (!success) throw new Error(lastError || 'API Service Error');
             
             currentDocData = jsonResponse;
-            docStatus.textContent = `Document Ready: ${jsonResponse.docType}`;
+            docStatus.textContent = `Draft Created: ${jsonResponse.docType}`;
             downloadSection.classList.remove('hidden');
             
         } catch (error) {
-            alert('Failed to generate document: ' + error.message);
+            alert('Drafting Failed: ' + error.message);
         } finally {
             loader.classList.add('hidden');
         }
@@ -112,15 +110,13 @@ ${text}`;
     // Word Download
     btnDownloadWord.addEventListener('click', () => {
         if (!currentDocData) return;
-        
         try {
             const lib = getDocxLib();
-            if (!lib) throw new Error("Word generation library (docx) failed to load from CDN. Please refresh.");
+            if (!lib) throw new Error("Library 'docx' not detected. Please reload.");
 
             const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = lib;
             const children = [];
 
-            // Professional Styles
             children.push(new Paragraph({
                 children: [new TextRun({ text: currentDocData.header, bold: true, size: 20, color: "555555" })],
                 alignment: AlignmentType.CENTER,
@@ -215,23 +211,14 @@ ${text}`;
             });
 
             Packer.toBlob(doc).then(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${currentDocData.docType.replace(/\s+/g, '_')}_Official.docx`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                saveAs(blob, `${currentDocData.docType.replace(/\s+/g, '_')}_Official.docx`);
             });
-        } catch (e) {
-            alert(e.message);
-        }
+        } catch (e) { alert(e.message); }
     });
 
     // PDF Download
     btnDownloadPdf.addEventListener('click', () => {
         if (!currentDocData) return;
-        
         const temp = document.createElement('div');
         temp.style.width = '794px'; 
         temp.style.padding = '60px';
@@ -240,8 +227,7 @@ ${text}`;
         temp.style.fontFamily = "'Times New Roman', serif";
         temp.style.position = 'fixed';
         temp.style.top = '0';
-        temp.style.left = '0';
-        temp.style.zIndex = '-1000'; // Under current UI but in view
+        temp.style.left = '-2000px'; 
         temp.style.boxSizing = 'border-box';
         temp.style.border = '4px double #333';
         
@@ -286,6 +272,6 @@ ${text}`;
                 alert("PDF Error: " + err.message);
                 document.body.removeChild(temp);
             });
-        }, 1000); // 1 second delay for rendering
+        }, 800);
     });
 });
