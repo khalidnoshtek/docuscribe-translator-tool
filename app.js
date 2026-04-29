@@ -47,13 +47,36 @@ Your task is to:
 Text to format:
 ${text}`;
 
-            const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro'];
+            // DISCOVERY: Find which models are actually available for this API Key
+            let availableModels = [];
+            try {
+                const listResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                if (listResp.ok) {
+                    const listData = await listResp.json();
+                    availableModels = listData.models
+                        .filter(m => m.supportedGenerationMethods.includes('generateContent'))
+                        .map(m => m.name.split('/').pop());
+                    console.log('Discovered models:', availableModels);
+                }
+            } catch (e) {
+                console.warn('Discovery failed:', e);
+            }
+
+            // Priority order for fallback if discovery fails or to sort discovery results
+            const priorityModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro'];
+            
+            // Final list: discovered models first, then fallbacks
+            const modelsToTry = availableModels.length > 0 
+                ? [...new Set([...availableModels.filter(m => priorityModels.includes(m)), ...availableModels, ...priorityModels])]
+                : priorityModels;
+
             let resultText = '';
             let success = false;
             let lastError = '';
 
-            for (const model of models) {
+            for (const model of modelsToTry) {
                 try {
+                    console.log(`Trying model: ${model}`);
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -64,13 +87,15 @@ ${text}`;
 
                     if (response.ok) {
                         const data = await response.json();
-                        resultText = data.candidates[0].content.parts[0].text;
-                        success = true;
-                        break;
+                        if (data.candidates && data.candidates[0].content) {
+                            resultText = data.candidates[0].content.parts[0].text;
+                            success = true;
+                            break;
+                        }
                     } else {
                         const err = await response.json();
                         lastError = err.error?.message || response.statusText;
-                        console.warn(`Model ${model} failed: ${lastError}`);
+                        console.warn(`Model ${model} failed:`, lastError);
                     }
                 } catch (e) {
                     console.warn(`Fetch error for ${model}:`, e);
@@ -78,9 +103,9 @@ ${text}`;
                 }
             }
 
-            if (!success) throw new Error('All AI models failed. Last error: ' + lastError);
+            if (!success) throw new Error(lastError || 'All models failed to respond.');
             
-            // Cleanup any stray markdown just in case the AI ignored instructions
+            // Cleanup any stray markdown
             resultText = resultText.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
             
             textArea.value = resultText;
