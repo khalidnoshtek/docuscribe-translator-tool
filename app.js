@@ -9,24 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnPdf = document.getElementById('btn-pdf');
     const suggestionsContainer = document.getElementById('suggestions-container');
     const loader = document.getElementById('loader');
-    
-    // API Key Settings
-    const apiKeyInput = document.getElementById('api-key-input');
-    const btnSaveKey = document.getElementById('btn-save-key');
-    
-    // Load saved API key
-    if (localStorage.getItem('gemini_api_key')) {
-        apiKeyInput.value = localStorage.getItem('gemini_api_key');
-    }
-    
-    btnSaveKey.addEventListener('click', () => {
-        const key = apiKeyInput.value.trim();
-        if (key) {
-            localStorage.setItem('gemini_api_key', key);
-            btnSaveKey.textContent = 'Saved!';
-            setTimeout(() => btnSaveKey.textContent = 'Save Key', 2000);
-        }
-    });
 
     // Update stats
     const updateStats = () => {
@@ -65,7 +47,7 @@ Your task is to:
 Text to format:
 ${text}`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
