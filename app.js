@@ -2,12 +2,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const textArea = document.getElementById('text-input');
     const wordCount = document.getElementById('word-count');
     const charCount = document.getElementById('char-count');
+    const btnAiFormat = document.getElementById('btn-ai-format');
     const btnClean = document.getElementById('btn-clean');
     const btnGrammar = document.getElementById('btn-grammar');
     const btnWord = document.getElementById('btn-word');
     const btnPdf = document.getElementById('btn-pdf');
     const suggestionsContainer = document.getElementById('suggestions-container');
     const loader = document.getElementById('loader');
+    
+    // API Key Settings
+    const apiKeyInput = document.getElementById('api-key-input');
+    const btnSaveKey = document.getElementById('btn-save-key');
+    
+    // Load saved API key
+    if (localStorage.getItem('gemini_api_key')) {
+        apiKeyInput.value = localStorage.getItem('gemini_api_key');
+    }
+    
+    btnSaveKey.addEventListener('click', () => {
+        const key = apiKeyInput.value.trim();
+        if (key) {
+            localStorage.setItem('gemini_api_key', key);
+            btnSaveKey.textContent = 'Saved!';
+            setTimeout(() => btnSaveKey.textContent = 'Save Key', 2000);
+        }
+    });
 
     // Update stats
     const updateStats = () => {
@@ -18,6 +37,67 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     textArea.addEventListener('input', updateStats);
+
+    // AI Smart Format
+    btnAiFormat.addEventListener('click', async () => {
+        const text = textArea.value;
+        if (!text.trim()) return;
+        
+        const apiKey = localStorage.getItem('gemini_api_key');
+        if (!apiKey) {
+            alert('Please enter and save a Gemini API Key in the settings panel first.');
+            return;
+        }
+
+        loader.querySelector('p').textContent = 'AI is formatting your document...';
+        loader.classList.remove('hidden');
+
+        try {
+            const prompt = `You are a professional document formatting assistant.
+I will provide you with a roughly translated text from Arabic/Urdu into English.
+Your task is to:
+1. Fix any grammar, spelling, or punctuation errors.
+2. Structure the text logically into proper paragraphs.
+3. Apply a formal, official document tone.
+4. If there are clear headings, format them in ALL CAPS.
+5. Return ONLY the formatted text. Do not add any conversational responses, markdown formatting (like *, #, or \`\`\`), or extra comments. Just return plain text formatted with newlines.
+
+Text to format:
+${text}`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || 'API request failed');
+            }
+
+            const data = await response.json();
+            let resultText = data.candidates[0].content.parts[0].text;
+            
+            // Cleanup any stray markdown just in case the AI ignored instructions
+            resultText = resultText.replace(/```[a-z]*\n?/g, '').trim();
+            
+            textArea.value = resultText;
+            updateStats();
+            
+            const originalText = btnAiFormat.innerHTML;
+            btnAiFormat.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg> Formatted!';
+            setTimeout(() => btnAiFormat.innerHTML = originalText, 2000);
+            
+        } catch (error) {
+            console.error('AI Formatting Error:', error);
+            alert('Failed to format document: ' + error.message);
+        } finally {
+            loader.classList.add('hidden');
+        }
+    });
 
     // Clean text
     btnClean.addEventListener('click', () => {
@@ -156,9 +236,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const { Document, Packer, Paragraph, TextRun } = docx;
         
         const paragraphs = text.split('\n').map(line => {
+            const trimmedLine = line.trim();
+            const isHeading = trimmedLine.length > 0 && trimmedLine === trimmedLine.toUpperCase() && trimmedLine.length < 100;
+            
             return new Paragraph({
-                children: [new TextRun(line)],
-                spacing: { after: 200 }
+                children: [
+                    new TextRun({ 
+                        text: line || " ",
+                        bold: isHeading,
+                        size: isHeading ? 28 : 24 // 14pt and 12pt (half-points in docx)
+                    })
+                ],
+                spacing: { after: isHeading ? 100 : 200, before: isHeading ? 200 : 0 }
             });
         });
 
