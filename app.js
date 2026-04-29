@@ -34,8 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const prompt = `You are an elite legal document architect.
-I will provide you with a rough translation of an old document.
-Reconstruct it into a prestigious, official legal document.
+Identify the document type and reconstruct it into a prestigious, official legal document.
 Return ONLY a JSON object.
 
 JSON Structure:
@@ -44,12 +43,8 @@ JSON Structure:
   "title": "PRESTIGIOUS OFFICIAL TITLE",
   "reference": "Ref: DOC-${Math.floor(Math.random()*9000)+1000}",
   "header": "OFFICIAL CERTIFIED TRANSLATION",
-  "contentSections": [
-    { "title": "I. PREAMBLE", "text": "..." }
-  ],
-  "signatures": [
-    {"label": "Party 1", "name": "..."}
-  ],
+  "contentSections": [{ "title": "I. PREAMBLE", "text": "..." }],
+  "signatures": [{"label": "Party 1", "name": "..."}],
   "footer": "This is a certified translation."
 }
 
@@ -103,124 +98,132 @@ ${text}`;
     btnDownloadWord.addEventListener('click', () => {
         if (!currentDocData) return;
         
-        // Find docx library robustly
-        const docxLib = window.docx || docx;
-        if (!docxLib) {
-            alert("The Word generation library (docx) failed to load. Please refresh the page.");
-            return;
-        }
+        try {
+            // Find docx library robustly
+            const docxLib = window.docx;
+            if (!docxLib) throw new Error("docx library not loaded from CDN.");
 
-        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = docxLib;
-        
-        const children = [];
+            const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = docxLib;
+            
+            const children = [];
 
-        // Design
-        children.push(new Paragraph({
-            children: [new TextRun({ text: currentDocData.header, bold: true, size: 20, color: "555555" })],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 100 }
-        }));
-
-        children.push(new Paragraph({
-            children: [new TextRun({ text: currentDocData.reference, size: 18, color: "888888" })],
-            alignment: AlignmentType.RIGHT,
-            spacing: { after: 300 }
-        }));
-
-        children.push(new Paragraph({
-            children: [new TextRun({ text: currentDocData.title, bold: true, size: 36, underline: { type: "double" } })],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 600 }
-        }));
-
-        currentDocData.contentSections.forEach(s => {
             children.push(new Paragraph({
-                children: [new TextRun({ text: s.title, bold: true, size: 24 })],
-                spacing: { before: 300, after: 150 },
-                border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } }
+                children: [new TextRun({ text: currentDocData.header, bold: true, size: 20, color: "555555" })],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 100 }
             }));
-            children.push(new Paragraph({
-                children: [new TextRun({ text: s.text, size: 24 })],
-                alignment: AlignmentType.JUSTIFIED,
-                spacing: { after: 200 },
-                indent: { left: 400 }
-            }));
-        });
 
-        const rows = [];
-        for (let i = 0; i < currentDocData.signatures.length; i += 2) {
-            const cells = [
-                new TableCell({
-                    children: [
-                        new Paragraph({ spacing: { before: 1200 } }),
-                        new Paragraph({
-                            border: { top: { style: BorderStyle.SINGLE, size: 1 } },
-                            children: [
-                                new TextRun({ text: currentDocData.signatures[i].label + ": ", bold: true, size: 18 }),
-                                new TextRun({ text: currentDocData.signatures[i].name, size: 18 })
-                            ]
-                        })
-                    ],
-                    borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL }
-                })
-            ];
-            if (currentDocData.signatures[i + 1]) {
-                cells.push(new TableCell({
-                    children: [
-                        new Paragraph({ spacing: { before: 1200 } }),
-                        new Paragraph({
-                            border: { top: { style: BorderStyle.SINGLE, size: 1 } },
-                            children: [
-                                new TextRun({ text: currentDocData.signatures[i+1].label + ": ", bold: true, size: 18 }),
-                                new TextRun({ text: currentDocData.signatures[i+1].name, size: 18 })
-                            ]
-                        })
-                    ],
-                    borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL }
+            children.push(new Paragraph({
+                children: [new TextRun({ text: currentDocData.reference, size: 18, color: "888888" })],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 300 }
+            }));
+
+            children.push(new Paragraph({
+                children: [new TextRun({ text: currentDocData.title, bold: true, size: 36, underline: { type: "double" } })],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 600 }
+            }));
+
+            currentDocData.contentSections.forEach(s => {
+                children.push(new Paragraph({
+                    children: [new TextRun({ text: s.title, bold: true, size: 24 })],
+                    spacing: { before: 300, after: 150 },
+                    border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } }
                 }));
-            } else {
-                cells.push(new TableCell({ children: [], borders: { top: BorderStyle.NIL, bottom: BorderStyle.NIL, left: BorderStyle.NIL, right: BorderStyle.NIL } }));
+                children.push(new Paragraph({
+                    children: [new TextRun({ text: s.text, size: 24 })],
+                    alignment: AlignmentType.JUSTIFIED,
+                    spacing: { after: 200 }
+                }));
+            });
+
+            const rows = [];
+            for (let i = 0; i < currentDocData.signatures.length; i += 2) {
+                const cells = [
+                    new TableCell({
+                        children: [
+                            new Paragraph({ spacing: { before: 1200 } }),
+                            new Paragraph({
+                                border: { top: { style: BorderStyle.SINGLE, size: 1 } },
+                                children: [
+                                    new TextRun({ text: currentDocData.signatures[i].label + ": ", bold: true, size: 18 }),
+                                    new TextRun({ text: currentDocData.signatures[i].name, size: 18 })
+                                ]
+                            })
+                        ]
+                    })
+                ];
+                if (currentDocData.signatures[i + 1]) {
+                    cells.push(new TableCell({
+                        children: [
+                            new Paragraph({ spacing: { before: 1200 } }),
+                            new Paragraph({
+                                border: { top: { style: BorderStyle.SINGLE, size: 1 } },
+                                children: [
+                                    new TextRun({ text: currentDocData.signatures[i+1].label + ": ", bold: true, size: 18 }),
+                                    new TextRun({ text: currentDocData.signatures[i+1].name, size: 18 })
+                                ]
+                            })
+                        ]
+                    }));
+                }
+                rows.push(new TableRow({ children: cells }));
             }
-            rows.push(new TableRow({ children: cells }));
-        }
 
-        children.push(new Table({
-            rows: rows,
-            width: { size: 100, type: WidthType.PERCENTAGE }
-        }));
+            children.push(new Table({
+                rows: rows,
+                width: { size: 100, type: WidthType.PERCENTAGE }
+            }));
 
-        children.push(new Paragraph({
-            children: [new TextRun({ text: currentDocData.footer, size: 16, color: "999999", italic: true })],
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 1500 }
-        }));
+            children.push(new Paragraph({
+                children: [new TextRun({ text: currentDocData.footer, size: 16, color: "999999", italic: true })],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 1500 }
+            }));
 
-        const doc = new Document({
-            sections: [{
-                properties: {
-                    page: {
-                        margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-                        borders: {
-                            pageBorderLeft: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
-                            pageBorderRight: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
-                            pageBorderTop: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
-                            pageBorderBottom: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+            const doc = new Document({
+                sections: [{
+                    properties: {
+                        page: {
+                            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+                            borders: {
+                                pageBorderLeft: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+                                pageBorderRight: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+                                pageBorderTop: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+                                pageBorderBottom: { style: BorderStyle.SINGLE, size: 18, space: 24, color: "222222" },
+                            }
                         }
-                    }
-                },
-                children: children
-            }]
-        });
+                    },
+                    children: children
+                }]
+            });
 
-        Packer.toBlob(doc).then(blob => {
-            saveAs(blob, `${currentDocData.docType.replace(/\s+/g, '_')}_Official.docx`);
-        });
+            Packer.toBlob(doc).then(blob => {
+                if (window.saveAs) {
+                    window.saveAs(blob, `${currentDocData.docType.replace(/\s+/g, '_')}_Official.docx`);
+                } else {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${currentDocData.docType.replace(/\s+/g, '_')}_Official.docx`;
+                    a.click();
+                }
+            });
+        } catch (e) {
+            alert("Word Export Failed: " + e.message);
+            console.error(e);
+        }
     });
 
     // PDF Download
     btnDownloadPdf.addEventListener('click', () => {
         if (!currentDocData) return;
         
+        // Remove existing temp if any
+        const existing = document.getElementById('pdf-render-target');
+        if (existing) document.body.removeChild(existing);
+
         const temp = document.createElement('div');
         temp.id = 'pdf-render-target';
         temp.style.width = '794px'; 
@@ -231,11 +234,10 @@ ${text}`;
         temp.style.lineHeight = '1.6';
         temp.style.border = '4px double #333';
         temp.style.boxSizing = 'border-box';
-        temp.style.position = 'fixed';
+        temp.style.position = 'absolute';
         temp.style.top = '0';
-        temp.style.left = '0';
-        temp.style.opacity = '0'; // Invisible but in DOM
-        temp.style.zIndex = '-1000';
+        temp.style.left = '-10000px'; 
+        temp.style.visibility = 'visible';
         
         let sectionsHtml = currentDocData.contentSections.map(s => `
             <div style="margin-bottom: 2rem;">
@@ -265,19 +267,22 @@ ${text}`;
 
         document.body.appendChild(temp);
 
-        // Wait for rendering then generate
+        // Render PDF
         setTimeout(() => {
             const opt = {
                 margin:       0,
                 filename:     `${currentDocData.docType.replace(/\s+/g, '_')}_Official.pdf`,
                 image:        { type: 'jpeg', quality: 1.0 },
-                html2canvas:  { scale: 2, useCORS: true },
+                html2canvas:  { scale: 2, useCORS: true, logging: true },
                 jsPDF:        { unit: 'px', format: [794, 1123], orientation: 'portrait' }
             };
 
             html2pdf().set(opt).from(temp).save().then(() => {
                 document.body.removeChild(temp);
+            }).catch(err => {
+                alert("PDF Generation Failed: " + err.message);
+                document.body.removeChild(temp);
             });
-        }, 500);
+        }, 800);
     });
 });
