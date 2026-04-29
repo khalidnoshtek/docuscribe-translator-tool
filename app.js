@@ -47,24 +47,41 @@ Your task is to:
 Text to format:
 ${text}`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            });
+            const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+            let resultText = '';
+            let success = false;
+            let lastError = '';
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error?.message || 'API request failed');
+            for (const model of models) {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }]
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        resultText = data.candidates[0].content.parts[0].text;
+                        success = true;
+                        break;
+                    } else {
+                        const err = await response.json();
+                        lastError = err.error?.message || response.statusText;
+                        console.warn(`Model ${model} failed: ${lastError}`);
+                    }
+                } catch (e) {
+                    console.warn(`Fetch error for ${model}:`, e);
+                    lastError = e.message;
+                }
             }
 
-            const data = await response.json();
-            let resultText = data.candidates[0].content.parts[0].text;
+            if (!success) throw new Error('All AI models failed. Last error: ' + lastError);
             
             // Cleanup any stray markdown just in case the AI ignored instructions
-            resultText = resultText.replace(/```[a-z]*\n?/g, '').trim();
+            resultText = resultText.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
             
             textArea.value = resultText;
             updateStats();
