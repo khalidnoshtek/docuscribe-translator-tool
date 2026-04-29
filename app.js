@@ -47,24 +47,30 @@ Your task is to:
 Text to format:
 ${text}`;
 
+            // Priority order for 2026 models
+            const priorityModels = [
+                'gemini-3-flash', 
+                'gemini-3-pro', 
+                'gemini-2.5-flash', 
+                'gemini-2.5-pro', 
+                'gemini-1.5-flash'
+            ];
+            
             // DISCOVERY: Find which models are actually available for this API Key
             let availableModels = [];
             try {
-                const listResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                const listResp = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
                 if (listResp.ok) {
                     const listData = await listResp.json();
                     availableModels = listData.models
                         .filter(m => m.supportedGenerationMethods.includes('generateContent'))
                         .map(m => m.name.split('/').pop());
-                    console.log('Discovered models:', availableModels);
+                    console.log('Discovered 2026 models:', availableModels);
                 }
             } catch (e) {
                 console.warn('Discovery failed:', e);
             }
 
-            // Priority order for fallback if discovery fails or to sort discovery results
-            const priorityModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro'];
-            
             // Final list: discovered models first, then fallbacks
             const modelsToTry = availableModels.length > 0 
                 ? [...new Set([...availableModels.filter(m => priorityModels.includes(m)), ...availableModels, ...priorityModels])]
@@ -77,7 +83,7 @@ ${text}`;
             for (const model of modelsToTry) {
                 try {
                     console.log(`Trying model: ${model}`);
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
