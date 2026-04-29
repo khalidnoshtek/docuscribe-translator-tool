@@ -331,6 +331,59 @@ textarea:focus {
     to { transform: rotate(360deg); }
 }
 
+.preview-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.4);
+}
+
+.paper-preview {
+    background: white;
+    color: #1a1a1a;
+    padding: 2rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    min-height: 400px;
+    font-family: 'Playfair Display', serif;
+    line-height: 1.5;
+    font-size: 0.9rem;
+    border: 1px solid #ddd;
+    position: relative;
+    overflow: hidden;
+}
+
+.paper-preview h2 {
+    text-align: center;
+    font-size: 1.5rem;
+    text-decoration: underline;
+    margin-bottom: 1.5rem;
+    color: #000;
+}
+
+.paper-preview h4 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+    border-bottom: 1px solid #eee;
+}
+
+.paper-preview p {
+    margin-bottom: 0.75rem;
+    text-align: justify;
+}
+
+.paper-preview .signature-line {
+    margin-top: 3rem;
+    border-top: 1px solid #333;
+    width: 200px;
+    padding-top: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.hidden {
+    display: none !important;
+}
+
 @media (max-width: 900px) {
     main {
         grid-template-columns: 1fr;
@@ -339,6 +392,7 @@ textarea:focus {
         height: auto;
     }
     .sidebar {
-        height: 400px;
+        height: auto;
+        min-height: 500px;
     }
 }
