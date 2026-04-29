@@ -59,14 +59,20 @@ JSON Structure:
 Text to process:
 ${text}`;
 
-            const models = ['gemini-3-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            const models = [
+                'gemini-1.5-flash',
+                'gemini-1.5-pro',
+                'gemini-2.0-flash',
+                'gemini-1.5-flash-latest',
+                'gemini-1.5-pro-latest'
+            ];
             let jsonResponse = null;
             let success = false;
             let lastError = '';
 
             for (const model of models) {
                 try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
