@@ -97,7 +97,7 @@ ${text}`;
     });
 
     const generateWordFile = (data) => {
-        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = docx;
+        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = window.docx;
         
         const children = [];
 
