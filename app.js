@@ -353,45 +353,78 @@ ${text}`;
         } catch (e) { alert('Word Error: ' + e.message); }
     });
 
+    // Build a plain-text version of the document for sharing as message body
+    function buildPlainText() {
+        const d = currentDocData;
+        const lines = [];
+        if (d.header) lines.push(d.header.toUpperCase());
+        if (d.reference) lines.push(d.reference);
+        lines.push('');
+        if (d.title) lines.push(d.title.toUpperCase());
+        if (d.subtitle) lines.push(d.subtitle);
+        lines.push('');
+        if (d.preamble) { lines.push(d.preamble); lines.push(''); }
+        (d.contentSections || []).forEach((s, i) => {
+            lines.push(`${String(i+1).padStart(2,'0')}. ${(s.title || '').toUpperCase()}`);
+            lines.push(s.text || '');
+            lines.push('');
+        });
+        (d.signatures || []).forEach(s => {
+            lines.push(`${s.label || ''}: ${s.name || ''}`);
+        });
+        if (d.footer) { lines.push(''); lines.push(d.footer); }
+        lines.push('');
+        lines.push('— Drafted with Sanad');
+        return lines.join('\n');
+    }
+
     // ===== SHARE =====
     async function shareDocument(target) {
         if (!currentDocData) return;
-        let blob, filename;
-        try {
-            loader.classList.remove('hidden');
-            blob = await buildWordBlob();
-            filename = wordFilename();
-        } catch (e) {
-            loader.classList.add('hidden');
-            alert('Share Error: ' + e.message);
-            return;
-        }
-        loader.classList.add('hidden');
 
-        const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
         const shareTitle = currentDocData.title || 'Official Document';
-        const shareText = `${shareTitle}\n\nDrafted with Sanad.`;
+        const fullText = buildPlainText();
 
-        // Web Share API Level 2 (mobile Safari/Chrome) — opens native share sheet
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({ files: [file], title: shareTitle, text: shareText });
-                showToast('✓ Shared successfully', 'success');
-                return;
-            } catch (err) {
-                if (err.name === 'AbortError') return;
-                // fall through to fallback
+        // STEP 1: Try Web Share API with the .docx file (works on iOS Safari + secure-context Android)
+        try {
+            const blob = await buildWordBlob();
+            const filename = wordFilename();
+            const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], title: shareTitle, text: shareTitle });
+                    showToast('✓ Shared successfully', 'success');
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
+                }
             }
-        }
 
-        // Fallback: download the file, then open WhatsApp/Email with a message
-        saveAs(blob, filename);
-        showToast(`✓ Downloaded — opening ${target === 'whatsapp' ? 'WhatsApp' : 'Email'}, attach the file`, 'success');
-        const msg = encodeURIComponent(`${shareText}\n\n(Attach the just-downloaded file: ${filename})`);
-        if (target === 'whatsapp') {
-            setTimeout(() => window.open(`https://wa.me/?text=${msg}`, '_blank'), 600);
-        } else if (target === 'email') {
-            setTimeout(() => { window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${msg}`; }, 600);
+            // STEP 2: Web Share API with text only (works on most mobile browsers including HTTP)
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title: shareTitle, text: fullText });
+                    showToast('✓ Text shared — file also downloaded', 'success');
+                    saveAs(blob, filename);
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
+                }
+            }
+
+            // STEP 3: Final fallback — download + open WhatsApp Web/mailto with text body
+            saveAs(blob, filename);
+            const encoded = encodeURIComponent(fullText);
+            if (target === 'whatsapp') {
+                showToast('✓ Document downloaded — opening WhatsApp. Attach file from your downloads.', 'success');
+                setTimeout(() => window.open(`https://wa.me/?text=${encoded}`, '_blank'), 800);
+            } else {
+                showToast('✓ Document downloaded — opening Email. Attach file from your downloads.', 'success');
+                setTimeout(() => { window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encoded}`; }, 800);
+            }
+        } catch (e) {
+            alert('Share Error: ' + e.message);
         }
     }
 
