@@ -389,29 +389,33 @@ ${text}`;
         try {
             const blob = await buildWordBlob();
             const filename = wordFilename();
-            const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                try {
-                    await navigator.share({ files: [file], title: shareTitle, text: shareTitle });
-                    showToast('✓ Shared successfully', 'success');
-                    return;
-                } catch (err) {
-                    if (err.name === 'AbortError') return;
+            // Try multiple MIME types — Android Chrome blocks the official .docx mimetype
+            // for Web Share, but accepts application/octet-stream and application/zip
+            // (which is technically what a .docx is — a zip archive)
+            const mimeCandidates = [
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/octet-stream',
+                'application/zip',
+                ''
+            ];
+
+            let shared = false;
+            for (const mime of mimeCandidates) {
+                const file = new File([blob], filename, mime ? { type: mime } : {});
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({ files: [file], title: shareTitle });
+                        showToast('✓ Shared successfully', 'success');
+                        shared = true;
+                        break;
+                    } catch (err) {
+                        if (err.name === 'AbortError') { shared = true; break; }
+                        // try next mime
+                    }
                 }
             }
-
-            // STEP 2: Web Share API with text only (works on most mobile browsers including HTTP)
-            if (navigator.share) {
-                try {
-                    await navigator.share({ title: shareTitle, text: fullText });
-                    showToast('✓ Text shared — file also downloaded', 'success');
-                    saveAs(blob, filename);
-                    return;
-                } catch (err) {
-                    if (err.name === 'AbortError') return;
-                }
-            }
+            if (shared) return;
 
             // STEP 3: Final fallback — download + deep-link directly into the installed app
             saveAs(blob, filename);
