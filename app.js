@@ -27,6 +27,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const getTheme = (key) => THEMES[key] || THEMES.legal;
 
+    // Toast popup helper
+    function showToast(message, type = 'info') {
+        const existing = document.querySelector('.toast');
+        if (existing) existing.remove();
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        // Trigger animation
+        requestAnimationFrame(() => toast.classList.add('toast-show'));
+        setTimeout(() => {
+            toast.classList.remove('toast-show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
+
     textArea.addEventListener('input', () => {
         const text = textArea.value;
         const words = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -126,6 +142,12 @@ ${text}`;
             currentDocData = jsonResponse;
             docStatus.textContent = `Draft Created: ${jsonResponse.docType}`;
             downloadSection.classList.remove('hidden');
+
+            // Smooth scroll to share/download section + show success popup
+            setTimeout(() => {
+                downloadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                showToast(`✓ ${jsonResponse.docType} drafted — choose Word, PDF or share below.`, 'success');
+            }, 250);
 
         } catch (error) {
             alert('Drafting Failed: ' + error.message);
@@ -328,6 +350,7 @@ ${text}`;
         try {
             const blob = await buildWordBlob();
             saveAs(blob, wordFilename());
+            showToast('✓ Word document downloaded', 'success');
         } catch (e) { alert('Word Error: ' + e.message); }
     });
 
@@ -359,10 +382,13 @@ ${text}`;
         wrap.id = 'pdf-render-target';
         wrap.style.cssText = `
             width: 794px;
+            margin: 0;
+            padding: 0;
             background: #ffffff;
             color: #1a1a1a;
             font-family: 'Garamond', 'Times New Roman', Georgia, serif;
             box-sizing: border-box;
+            display: block;
         `;
 
         const decorTop = layout === 'decorative'
@@ -448,19 +474,16 @@ ${text}`;
         await new Promise(r => setTimeout(r, 300));
 
         const opt = {
-            margin: 0,
+            margin: [10, 10, 10, 10],
             filename: `${(currentDocData.docType || 'Document').replace(/\s+/g, '_')}_Official.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
                 scale: 2,
                 useCORS: true,
                 backgroundColor: '#ffffff',
-                logging: false,
-                windowWidth: 794,
-                width: 794,
-                height: wrap.scrollHeight
+                logging: false
             },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
             pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
@@ -475,9 +498,15 @@ ${text}`;
     btnDownloadPdf.addEventListener('click', async () => {
         if (!currentDocData) return;
         try {
+            loader.classList.remove('hidden');
             const blob = await buildPdfBlob();
+            loader.classList.add('hidden');
             saveAs(blob, pdfFilename());
-        } catch (e) { alert('PDF Error: ' + e.message); }
+            showToast('✓ PDF downloaded', 'success');
+        } catch (e) {
+            loader.classList.add('hidden');
+            alert('PDF Error: ' + e.message);
+        }
     });
 
     // ===== SHARE =====
@@ -504,6 +533,7 @@ ${text}`;
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try {
                 await navigator.share({ files: [file], title: shareTitle, text: shareText });
+                showToast('✓ Shared successfully', 'success');
                 return;
             } catch (err) {
                 if (err.name === 'AbortError') return;
@@ -513,11 +543,12 @@ ${text}`;
 
         // Fallback: download the file, then open WhatsApp/Email with a message
         saveAs(blob, filename);
+        showToast(`✓ Downloaded — opening ${target === 'whatsapp' ? 'WhatsApp' : 'Email'}, attach the file`, 'success');
         const msg = encodeURIComponent(`${shareText}\n\n(Attach the just-downloaded file: ${filename})`);
         if (target === 'whatsapp') {
-            window.open(`https://wa.me/?text=${msg}`, '_blank');
+            setTimeout(() => window.open(`https://wa.me/?text=${msg}`, '_blank'), 600);
         } else if (target === 'email') {
-            window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${msg}`;
+            setTimeout(() => { window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${msg}`; }, 600);
         }
     }
 
