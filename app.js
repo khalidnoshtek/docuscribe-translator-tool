@@ -353,6 +353,171 @@ ${text}`;
         } catch (e) { alert('Word Error: ' + e.message); }
     });
 
+    // Build a clean, multi-page PDF using jsPDF text rendering (no html2canvas).
+    // This is reliable, small, and shareable on WhatsApp/Email.
+    function buildSharePdfBlob() {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+        const d = currentDocData;
+        const theme = getTheme(d.theme);
+        const primaryRgb = hexToRgb(theme.primary);
+        const accentRgb = hexToRgb(theme.accent);
+
+        const pageW = 210, pageH = 297;
+        const margin = 18;
+        const usableW = pageW - margin * 2;
+        let y = margin;
+
+        const ensureSpace = (need) => {
+            if (y + need > pageH - margin) {
+                pdf.addPage();
+                y = margin;
+            }
+        };
+
+        const writeText = (text, opts = {}) => {
+            const {
+                size = 11, font = 'times', style = 'normal',
+                color = [40, 40, 40], align = 'left', leading = 1.45,
+                spaceAfter = 3
+            } = opts;
+            pdf.setFont(font, style);
+            pdf.setFontSize(size);
+            pdf.setTextColor(color[0], color[1], color[2]);
+            const lines = pdf.splitTextToSize(text, usableW);
+            const lineH = (size * 0.3528) * leading; // pt → mm
+            for (const line of lines) {
+                ensureSpace(lineH);
+                let x = margin;
+                if (align === 'center') x = pageW / 2;
+                else if (align === 'right') x = pageW - margin;
+                pdf.text(line, x, y + lineH * 0.75, { align });
+                y += lineH;
+            }
+            y += spaceAfter;
+        };
+
+        const drawRule = (color, weight = 0.4, width = usableW) => {
+            ensureSpace(2);
+            pdf.setDrawColor(color[0], color[1], color[2]);
+            pdf.setLineWidth(weight);
+            const x = (pageW - width) / 2;
+            pdf.line(x, y, x + width, y);
+            y += 4;
+        };
+
+        // Header
+        if (d.header) {
+            writeText(d.header.toUpperCase(), {
+                size: 8, style: 'bold', color: accentRgb, align: 'center', spaceAfter: 2
+            });
+        }
+        drawRule(accentRgb, 0.3);
+
+        // Reference (right)
+        if (d.reference) {
+            writeText(d.reference, {
+                size: 8, style: 'italic', color: [120, 120, 120], align: 'right', spaceAfter: 6
+            });
+        }
+
+        // Title
+        y += 4;
+        writeText((d.title || '').toUpperCase(), {
+            size: 18, style: 'bold', color: primaryRgb, align: 'center', leading: 1.2, spaceAfter: 2
+        });
+        if (d.subtitle) {
+            writeText(d.subtitle, {
+                size: 11, style: 'italic', color: accentRgb, align: 'center', spaceAfter: 4
+            });
+        }
+
+        // Decorative rule under title
+        ensureSpace(6);
+        pdf.setDrawColor(accentRgb[0], accentRgb[1], accentRgb[2]);
+        pdf.setLineWidth(0.6);
+        pdf.line(pageW/2 - 20, y, pageW/2 + 20, y);
+        y += 8;
+
+        // Preamble (italic)
+        if (d.preamble) {
+            writeText(d.preamble, {
+                size: 11, style: 'italic', color: [80, 80, 80], align: 'left', leading: 1.55, spaceAfter: 5
+            });
+        }
+
+        // Sections
+        (d.contentSections || []).forEach((s, i) => {
+            ensureSpace(12);
+            writeText(`${String(i+1).padStart(2,'0')}.  ${(s.title || '').toUpperCase()}`, {
+                size: 11, style: 'bold', color: primaryRgb, leading: 1.3, spaceAfter: 1
+            });
+            // Underline rule
+            pdf.setDrawColor(220, 215, 200);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin, y, margin + usableW, y);
+            y += 3;
+            writeText(s.text || '', {
+                size: 11, color: [40, 40, 40], leading: 1.55, spaceAfter: 5
+            });
+        });
+
+        // Signatures
+        const sigs = d.signatures || [];
+        if (sigs.length) {
+            y += 8;
+            ensureSpace(28);
+            const colWidth = usableW / 2 - 6;
+            sigs.forEach((s, i) => {
+                const col = i % 2;
+                const row = Math.floor(i / 2);
+                if (col === 0 && row > 0) {
+                    y += 22;
+                    ensureSpace(28);
+                }
+                const x = margin + col * (colWidth + 12);
+                const sigY = y;
+                pdf.setDrawColor(150, 150, 150);
+                pdf.setLineWidth(0.3);
+                pdf.line(x, sigY + 14, x + colWidth, sigY + 14);
+                pdf.setFont('times', 'bold');
+                pdf.setFontSize(11);
+                pdf.setTextColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
+                pdf.text(s.name || '', x, sigY + 18);
+                pdf.setFont('times', 'italic');
+                pdf.setFontSize(9);
+                pdf.setTextColor(accentRgb[0], accentRgb[1], accentRgb[2]);
+                pdf.text(s.label || '', x, sigY + 22);
+            });
+            y += 26;
+        }
+
+        // Footer
+        if (d.footer) {
+            ensureSpace(12);
+            y += 4;
+            drawRule(accentRgb, 0.3, 80);
+            writeText(d.footer, {
+                size: 8, style: 'italic', color: [110, 110, 110], align: 'center', leading: 1.4, spaceAfter: 0
+            });
+        }
+
+        return pdf.output('blob');
+    }
+
+    function hexToRgb(hex) {
+        const h = hex.replace('#', '');
+        return [
+            parseInt(h.slice(0, 2), 16),
+            parseInt(h.slice(2, 4), 16),
+            parseInt(h.slice(4, 6), 16)
+        ];
+    }
+
+    function pdfShareFilename() {
+        return `${(currentDocData?.docType || 'Document').replace(/\s+/g, '_')}_Official.pdf`;
+    }
+
     // Build a plain-text version of the document for sharing as message body
     function buildPlainText() {
         const d = currentDocData;
@@ -385,40 +550,24 @@ ${text}`;
         const shareTitle = currentDocData.title || 'Official Document';
         const fullText = buildPlainText();
 
-        // STEP 1: Try Web Share API with the .docx file (works on iOS Safari + secure-context Android)
+        // STEP 1: Build a PDF (WhatsApp accepts PDFs natively via Web Share API)
         try {
-            const blob = await buildWordBlob();
-            const filename = wordFilename();
+            const pdfBlob = buildSharePdfBlob();
+            const pdfName = pdfShareFilename();
+            const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
 
-            // Try multiple MIME types — Android Chrome blocks the official .docx mimetype
-            // for Web Share, but accepts application/octet-stream and application/zip
-            // (which is technically what a .docx is — a zip archive)
-            const mimeCandidates = [
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'application/octet-stream',
-                'application/zip',
-                ''
-            ];
-
-            let shared = false;
-            for (const mime of mimeCandidates) {
-                const file = new File([blob], filename, mime ? { type: mime } : {});
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    try {
-                        await navigator.share({ files: [file], title: shareTitle });
-                        showToast('✓ Shared successfully', 'success');
-                        shared = true;
-                        break;
-                    } catch (err) {
-                        if (err.name === 'AbortError') { shared = true; break; }
-                        // try next mime
-                    }
+            if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                try {
+                    await navigator.share({ files: [pdfFile], title: shareTitle });
+                    showToast('✓ Shared successfully', 'success');
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
                 }
             }
-            if (shared) return;
 
-            // STEP 3: Final fallback — download + deep-link directly into the installed app
-            saveAs(blob, filename);
+            // STEP 2: Final fallback — download PDF + deep-link into the installed app
+            saveAs(pdfBlob, pdfName);
             const encoded = encodeURIComponent(fullText);
             const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
