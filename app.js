@@ -293,7 +293,7 @@ ${text}`;
             }
 
             const doc = new Document({
-                creator: 'DocuScribe',
+                creator: 'Sanad',
                 title: currentDocData.title,
                 styles: {
                     default: {

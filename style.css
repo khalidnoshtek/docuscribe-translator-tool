@@ -68,6 +68,17 @@ header {
     font-weight: 700;
     letter-spacing: -0.015em;
     color: var(--text);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.logo-script {
+    font-size: 1.6rem;
+    font-weight: 500;
+    color: var(--accent);
+    opacity: 0.85;
+    letter-spacing: 0;
 }
 
 .dedication {
