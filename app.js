@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAiGenerate = document.getElementById('btn-ai-generate');
     const downloadSection = document.getElementById('download-section');
     const btnDownloadWord = document.getElementById('btn-download-word');
-    const btnDownloadPdf = document.getElementById('btn-download-pdf');
     const btnShareWhatsapp = document.getElementById('btn-share-whatsapp');
     const btnShareEmail = document.getElementById('btn-share-email');
     const loader = document.getElementById('loader');
@@ -354,214 +353,14 @@ ${text}`;
         } catch (e) { alert('Word Error: ' + e.message); }
     });
 
-    function pdfFilename() {
-        return `${(currentDocData?.docType || 'Document').replace(/\s+/g, '_')}_Official.pdf`;
-    }
-
-    // Builds an offscreen rendered PDF wrapper and returns a Blob (does not save)
-    async function buildPdfBlob() {
-        const theme = getTheme(currentDocData.theme);
-        const layout = currentDocData.layout || 'classic';
-
-        // Outer clip wrapper hides the rendered doc visually but keeps it
-        // fully laid-out in the document so html2canvas paints real pixels.
-        const clip = document.createElement('div');
-        clip.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            pointer-events: none;
-            opacity: 0.01;
-            z-index: 0;
-        `;
-
-        const wrap = document.createElement('div');
-        wrap.id = 'pdf-render-target';
-        wrap.style.cssText = `
-            width: 794px;
-            margin: 0;
-            padding: 0;
-            background: #ffffff;
-            color: #1a1a1a;
-            font-family: 'Garamond', 'Times New Roman', Georgia, serif;
-            box-sizing: border-box;
-            display: block;
-        `;
-
-        const decorTop = layout === 'decorative'
-            ? `<div style="text-align:center; color:#${theme.accent}; font-size:18px; letter-spacing:8px; margin:8px 0 24px;">❖ &nbsp; ⸻⸻⸻⸻ &nbsp; ❖ &nbsp; ⸻⸻⸻⸻ &nbsp; ❖</div>`
-            : '';
-
-        const subtitleHtml = currentDocData.subtitle
-            ? `<div style="text-align:center; font-style:italic; color:#${theme.accent}; font-size:18px; margin-top:6px; letter-spacing:1px;">${currentDocData.subtitle}</div>`
-            : '';
-
-        const preambleHtml = currentDocData.preamble
-            ? `<p style="font-style:italic; color:#444; text-align:justify; padding:0 32px; margin:24px 0 32px; font-size:16px; line-height:1.7;">${currentDocData.preamble}</p>`
-            : '';
-
-        const sectionsHtml = (currentDocData.contentSections || []).map((s, i) => `
-            <div style="margin-bottom: 28px;">
-                <div style="border-bottom:1.5px solid #${theme.rule}; padding-bottom:6px; margin-bottom:12px;">
-                    <span style="color:#${theme.accent}; font-weight:700; font-size:15px; letter-spacing:2px;">${String(i+1).padStart(2,'0')}.</span>
-                    <span style="color:#${theme.primary}; font-weight:700; font-size:15px; letter-spacing:2px; text-transform:uppercase; margin-left:8px;">${s.title || ''}</span>
-                </div>
-                <p style="text-align:justify; margin:0; font-size:15.5px; line-height:1.75; color:#222;">${s.text || ''}</p>
-            </div>
-        `).join('');
-
-        const sigs = currentDocData.signatures || [];
-        let sigHtml = '';
-        if (sigs.length) {
-            const useTwoCol = layout === 'two-column-sig' || sigs.length > 1;
-            if (useTwoCol) {
-                const rows = [];
-                for (let i = 0; i < sigs.length; i += 2) {
-                    rows.push(`<tr>${sigs.slice(i, i+2).map(s => `
-                        <td style="width:50%; padding:24px 16px; vertical-align:top;">
-                            <div style="margin-top:60px; border-top:1px solid #${theme.rule}; padding-top:8px;">
-                                <div style="font-weight:700; color:#${theme.primary}; font-size:15px;">${s.name || ''}</div>
-                                <div style="font-style:italic; color:#${theme.accent}; font-size:13px; margin-top:2px;">${s.label || ''}</div>
-                            </div>
-                        </td>`).join('')}${sigs.length % 2 && i + 1 >= sigs.length ? '<td></td>' : ''}</tr>`);
-                }
-                sigHtml = `<table style="width:100%; margin-top:40px; border-collapse:collapse;">${rows.join('')}</table>`;
-            } else {
-                const s = sigs[0];
-                sigHtml = `
-                    <div style="margin-top:80px; text-align:right;">
-                        <div style="display:inline-block; min-width:240px; border-top:1px solid #${theme.rule}; padding-top:8px;">
-                            <div style="font-weight:700; color:#${theme.primary}; font-size:15px;">${s.name || ''}</div>
-                            <div style="font-style:italic; color:#${theme.accent}; font-size:13px;">${s.label || ''}</div>
-                        </div>
-                    </div>`;
-            }
-        }
-
-        wrap.innerHTML = `
-            <div style="border: 2px double #${theme.primary}; padding: 40px 44px; box-sizing: border-box; position: relative;">
-                <div style="text-align:center; color:#${theme.accent}; font-size:10px; letter-spacing:5px; font-weight:700; margin-bottom:6px;">${currentDocData.header || ''}</div>
-                ${decorTop}
-                <div style="text-align:right; color:#888; font-size:10px; font-style:italic; margin-bottom:24px;">${currentDocData.reference || ''}</div>
-                <h1 style="text-align:center; font-size:26px; font-weight:700; color:#${theme.primary}; margin:0; letter-spacing:2px; text-transform:uppercase; line-height:1.25;">${currentDocData.title || ''}</h1>
-                ${subtitleHtml}
-                ${layout === 'decorative'
-                    ? `<div style="text-align:center; color:#${theme.accent}; margin:14px 0 22px; font-size:13px; letter-spacing:5px;">◈ &nbsp; ◈ &nbsp; ◈</div>`
-                    : `<div style="height:2px; background:#${theme.accent}; width:110px; margin:14px auto 24px;"></div>`}
-                ${preambleHtml}
-                ${sectionsHtml}
-                ${sigHtml}
-                ${currentDocData.footer ? `
-                    <div style="margin-top:48px; border-top:1px solid #${theme.accent}; padding-top:12px; text-align:center;">
-                        <em style="font-size:10px; color:#666;">${currentDocData.footer}</em>
-                    </div>` : ''}
-            </div>
-        `;
-
-        clip.appendChild(wrap);
-        document.body.appendChild(clip);
-
-        // Wait two frames + a short delay so fonts/layout settle
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-        if (document.fonts && document.fonts.ready) {
-            try { await document.fonts.ready; } catch (e) { /* ignore */ }
-        }
-        await new Promise(r => setTimeout(r, 300));
-
-        try {
-            // Capture the entire wrapper as a single tall canvas
-            const canvas = await html2canvas(wrap, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-                scrollX: 0,
-                scrollY: 0,
-                windowWidth: 794,
-                width: 794,
-                height: wrap.scrollHeight
-            });
-
-            // jsPDF is exposed via html2pdf bundle as window.jspdf.jsPDF
-            const { jsPDF } = window.jspdf || (window.html2pdf && window.html2pdf.jsPDF ? { jsPDF: window.html2pdf.jsPDF } : {});
-            if (!jsPDF) throw new Error('jsPDF not available');
-
-            const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-            const pageWidthMm = 210;
-            const pageHeightMm = 297;
-            const marginMm = 10;
-            const contentWidthMm = pageWidthMm - marginMm * 2;
-
-            // Image is contentWidthMm wide, height proportional to canvas aspect
-            const imgWidthMm = contentWidthMm;
-            const imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
-            const usablePageHeightMm = pageHeightMm - marginMm * 2;
-
-            // Slice the canvas vertically into per-page chunks
-            const pxPerMm = canvas.width / contentWidthMm; // px-per-mm at this scaled image width
-            const pageChunkPx = Math.floor(usablePageHeightMm * pxPerMm);
-
-            let renderedPx = 0;
-            let pageIndex = 0;
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-            // Simple multi-page: redraw the same full image with negative Y offset, masking with rect
-            while (renderedPx < canvas.height) {
-                if (pageIndex > 0) pdf.addPage();
-                const remainingPx = canvas.height - renderedPx;
-                const slicePx = Math.min(pageChunkPx, remainingPx);
-                const sliceHeightMm = slicePx / pxPerMm;
-
-                // Draw the full image positioned so the current slice lands at top margin
-                const yOffsetMm = marginMm - (renderedPx / pxPerMm);
-                pdf.addImage(imgData, 'JPEG', marginMm, yOffsetMm, imgWidthMm, imgHeightMm, undefined, 'FAST');
-
-                // Mask: cover anything above the top margin and below the slice end (white rectangles)
-                pdf.setFillColor(255, 255, 255);
-                if (yOffsetMm < marginMm) {
-                    pdf.rect(0, 0, pageWidthMm, marginMm, 'F');
-                }
-                const sliceBottomMm = marginMm + sliceHeightMm;
-                if (sliceBottomMm < pageHeightMm) {
-                    pdf.rect(0, sliceBottomMm, pageWidthMm, pageHeightMm - sliceBottomMm, 'F');
-                }
-
-                renderedPx += slicePx;
-                pageIndex++;
-            }
-
-            return pdf.output('blob');
-        } finally {
-            if (clip.parentNode) clip.parentNode.removeChild(clip);
-        }
-    }
-
-    btnDownloadPdf.addEventListener('click', async () => {
-        if (!currentDocData) return;
-        try {
-            loader.classList.remove('hidden');
-            const blob = await buildPdfBlob();
-            loader.classList.add('hidden');
-            saveAs(blob, pdfFilename());
-            showToast('✓ PDF downloaded', 'success');
-        } catch (e) {
-            loader.classList.add('hidden');
-            alert('PDF Error: ' + e.message);
-        }
-    });
-
     // ===== SHARE =====
     async function shareDocument(target) {
         if (!currentDocData) return;
-        // Prefer PDF for sharing (renders identically on all phones)
         let blob, filename;
         try {
             loader.classList.remove('hidden');
-            blob = await buildPdfBlob();
-            filename = pdfFilename();
+            blob = await buildWordBlob();
+            filename = wordFilename();
         } catch (e) {
             loader.classList.add('hidden');
             alert('Share Error: ' + e.message);
@@ -569,7 +368,7 @@ ${text}`;
         }
         loader.classList.add('hidden');
 
-        const file = new File([blob], filename, { type: 'application/pdf' });
+        const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
         const shareTitle = currentDocData.title || 'Official Document';
         const shareText = `${shareTitle}\n\nDrafted with Sanad.`;
 
