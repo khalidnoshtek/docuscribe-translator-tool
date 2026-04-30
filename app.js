@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const promptText = `You are an elite legal document architect.
-Reconstruct the following translated text into a prestigious, official document in elite legal English.
+Reconstruct the following rough text into a prestigious, official document in elite legal English.
 Choose the BEST visual style based on the document type. Available themes:
 - "legal" (general legal, contracts)
 - "property" (property deeds, sale agreements, land documents)
@@ -89,7 +89,7 @@ Return ONLY a valid JSON object — no markdown fences.
   "title": "PRESTIGIOUS OFFICIAL TITLE",
   "subtitle": "Optional Latin/formal subtitle or empty string",
   "reference": "Ref: DOC-${Math.floor(Math.random()*9000)+1000}",
-  "header": "OFFICIAL CERTIFIED TRANSLATION",
+  "header": "OFFICIAL CERTIFIED DOCUMENT",
   "preamble": "1-2 line opening statement in formal legal prose, or empty string",
   "contentSections": [{ "title": "Heading", "text": "Detailed elite legal content" }],
   "signatures": [{"label": "Role/Designation", "name": "Full Name"}],
