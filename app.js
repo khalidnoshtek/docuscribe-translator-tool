@@ -413,15 +413,30 @@ ${text}`;
                 }
             }
 
-            // STEP 3: Final fallback — download + open WhatsApp Web/mailto with text body
+            // STEP 3: Final fallback — download + deep-link directly into the installed app
             saveAs(blob, filename);
             const encoded = encodeURIComponent(fullText);
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
             if (target === 'whatsapp') {
                 showToast('✓ Document downloaded — opening WhatsApp. Attach file from your downloads.', 'success');
-                setTimeout(() => window.open(`https://wa.me/?text=${encoded}`, '_blank'), 800);
+                // whatsapp:// scheme opens the installed app directly on iOS & Android
+                const waApp = `whatsapp://send?text=${encoded}`;
+                const waWeb = `https://wa.me/?text=${encoded}`;
+                setTimeout(() => {
+                    if (isMobile) {
+                        // Try the app first; if not installed, fallback to web after a short delay
+                        window.location.href = waApp;
+                        setTimeout(() => { window.location.href = waWeb; }, 1500);
+                    } else {
+                        window.open(waWeb, '_blank');
+                    }
+                }, 600);
             } else {
                 showToast('✓ Document downloaded — opening Email. Attach file from your downloads.', 'success');
-                setTimeout(() => { window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encoded}`; }, 800);
+                setTimeout(() => {
+                    window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encoded}`;
+                }, 600);
             }
         } catch (e) {
             alert('Share Error: ' + e.message);
