@@ -340,20 +340,29 @@ ${text}`;
         const theme = getTheme(currentDocData.theme);
         const layout = currentDocData.layout || 'classic';
 
-        const wrap = document.createElement('div');
-        wrap.id = 'pdf-render-target';
-        // Position offscreen but in normal flow so html2canvas reliably renders
-        wrap.style.cssText = `
-            position: absolute;
+        // Outer clip wrapper hides the rendered doc visually but keeps it
+        // fully laid-out in the document so html2canvas paints real pixels.
+        const clip = document.createElement('div');
+        clip.style.cssText = `
+            position: fixed;
             top: 0;
             left: 0;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            pointer-events: none;
+            opacity: 0.01;
+            z-index: 0;
+        `;
+
+        const wrap = document.createElement('div');
+        wrap.id = 'pdf-render-target';
+        wrap.style.cssText = `
             width: 794px;
             background: #ffffff;
             color: #1a1a1a;
             font-family: 'Garamond', 'Times New Roman', Georgia, serif;
             box-sizing: border-box;
-            z-index: -1;
-            opacity: 1;
         `;
 
         const decorTop = layout === 'decorative'
@@ -428,17 +437,29 @@ ${text}`;
             </div>
         `;
 
-        document.body.appendChild(wrap);
+        clip.appendChild(wrap);
+        document.body.appendChild(clip);
 
-        // Wait one frame for layout
-        await new Promise(r => requestAnimationFrame(() => r()));
-        await new Promise(r => setTimeout(r, 200));
+        // Wait two frames + a short delay so fonts/layout settle
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        if (document.fonts && document.fonts.ready) {
+            try { await document.fonts.ready; } catch (e) { /* ignore */ }
+        }
+        await new Promise(r => setTimeout(r, 300));
 
         const opt = {
             margin: 0,
             filename: `${(currentDocData.docType || 'Document').replace(/\s+/g, '_')}_Official.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                windowWidth: 794,
+                width: 794,
+                height: wrap.scrollHeight
+            },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
@@ -447,7 +468,7 @@ ${text}`;
             const blob = await html2pdf().set(opt).from(wrap).output('blob');
             return blob;
         } finally {
-            if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+            if (clip.parentNode) clip.parentNode.removeChild(clip);
         }
     }
 
