@@ -442,24 +442,22 @@ ${text}`;
         }
 
         wrap.innerHTML = `
-            <div style="border: 3px double #${theme.primary}; padding: 56px 60px; min-height: 1050px; position: relative;">
-                <div style="position:absolute; top:18px; left:24px; right:24px; border-top:1px solid #${theme.accent}33;"></div>
-                <div style="text-align:center; color:#${theme.accent}; font-size:11px; letter-spacing:6px; font-weight:700; margin-bottom:6px;">${currentDocData.header || ''}</div>
+            <div style="border: 2px double #${theme.primary}; padding: 40px 44px; box-sizing: border-box; position: relative;">
+                <div style="text-align:center; color:#${theme.accent}; font-size:10px; letter-spacing:5px; font-weight:700; margin-bottom:6px;">${currentDocData.header || ''}</div>
                 ${decorTop}
-                <div style="text-align:right; color:#888; font-size:11px; font-style:italic; margin-bottom:32px;">${currentDocData.reference || ''}</div>
-                <h1 style="text-align:center; font-size:30px; font-weight:700; color:#${theme.primary}; margin:0; letter-spacing:3px; text-transform:uppercase;">${currentDocData.title || ''}</h1>
+                <div style="text-align:right; color:#888; font-size:10px; font-style:italic; margin-bottom:24px;">${currentDocData.reference || ''}</div>
+                <h1 style="text-align:center; font-size:26px; font-weight:700; color:#${theme.primary}; margin:0; letter-spacing:2px; text-transform:uppercase; line-height:1.25;">${currentDocData.title || ''}</h1>
                 ${subtitleHtml}
                 ${layout === 'decorative'
-                    ? `<div style="text-align:center; color:#${theme.accent}; margin:18px 0 28px; font-size:14px; letter-spacing:6px;">◈ &nbsp; ◈ &nbsp; ◈</div>`
-                    : `<div style="height:2px; background:#${theme.accent}; width:120px; margin:18px auto 32px;"></div>`}
+                    ? `<div style="text-align:center; color:#${theme.accent}; margin:14px 0 22px; font-size:13px; letter-spacing:5px;">◈ &nbsp; ◈ &nbsp; ◈</div>`
+                    : `<div style="height:2px; background:#${theme.accent}; width:110px; margin:14px auto 24px;"></div>`}
                 ${preambleHtml}
                 ${sectionsHtml}
                 ${sigHtml}
                 ${currentDocData.footer ? `
-                    <div style="margin-top:60px; border-top:1px solid #${theme.accent}; padding-top:14px; text-align:center;">
-                        <em style="font-size:11px; color:#666;">${currentDocData.footer}</em>
+                    <div style="margin-top:48px; border-top:1px solid #${theme.accent}; padding-top:12px; text-align:center;">
+                        <em style="font-size:10px; color:#666;">${currentDocData.footer}</em>
                     </div>` : ''}
-                <div style="position:absolute; bottom:18px; left:24px; right:24px; border-bottom:1px solid #${theme.accent}33;"></div>
             </div>
         `;
 
@@ -473,23 +471,69 @@ ${text}`;
         }
         await new Promise(r => setTimeout(r, 300));
 
-        const opt = {
-            margin: [10, 10, 10, 10],
-            filename: `${(currentDocData.docType || 'Document').replace(/\s+/g, '_')}_Official.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: {
+        try {
+            // Capture the entire wrapper as a single tall canvas
+            const canvas = await html2canvas(wrap, {
                 scale: 2,
                 useCORS: true,
                 backgroundColor: '#ffffff',
-                logging: false
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-        };
+                logging: false,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 794,
+                width: 794,
+                height: wrap.scrollHeight
+            });
 
-        try {
-            const blob = await html2pdf().set(opt).from(wrap).output('blob');
-            return blob;
+            // jsPDF is exposed via html2pdf bundle as window.jspdf.jsPDF
+            const { jsPDF } = window.jspdf || (window.html2pdf && window.html2pdf.jsPDF ? { jsPDF: window.html2pdf.jsPDF } : {});
+            if (!jsPDF) throw new Error('jsPDF not available');
+
+            const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+            const pageWidthMm = 210;
+            const pageHeightMm = 297;
+            const marginMm = 10;
+            const contentWidthMm = pageWidthMm - marginMm * 2;
+
+            // Image is contentWidthMm wide, height proportional to canvas aspect
+            const imgWidthMm = contentWidthMm;
+            const imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
+            const usablePageHeightMm = pageHeightMm - marginMm * 2;
+
+            // Slice the canvas vertically into per-page chunks
+            const pxPerMm = canvas.width / contentWidthMm; // px-per-mm at this scaled image width
+            const pageChunkPx = Math.floor(usablePageHeightMm * pxPerMm);
+
+            let renderedPx = 0;
+            let pageIndex = 0;
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+            // Simple multi-page: redraw the same full image with negative Y offset, masking with rect
+            while (renderedPx < canvas.height) {
+                if (pageIndex > 0) pdf.addPage();
+                const remainingPx = canvas.height - renderedPx;
+                const slicePx = Math.min(pageChunkPx, remainingPx);
+                const sliceHeightMm = slicePx / pxPerMm;
+
+                // Draw the full image positioned so the current slice lands at top margin
+                const yOffsetMm = marginMm - (renderedPx / pxPerMm);
+                pdf.addImage(imgData, 'JPEG', marginMm, yOffsetMm, imgWidthMm, imgHeightMm, undefined, 'FAST');
+
+                // Mask: cover anything above the top margin and below the slice end (white rectangles)
+                pdf.setFillColor(255, 255, 255);
+                if (yOffsetMm < marginMm) {
+                    pdf.rect(0, 0, pageWidthMm, marginMm, 'F');
+                }
+                const sliceBottomMm = marginMm + sliceHeightMm;
+                if (sliceBottomMm < pageHeightMm) {
+                    pdf.rect(0, sliceBottomMm, pageWidthMm, pageHeightMm - sliceBottomMm, 'F');
+                }
+
+                renderedPx += slicePx;
+                pageIndex++;
+            }
+
+            return pdf.output('blob');
         } finally {
             if (clip.parentNode) clip.parentNode.removeChild(clip);
         }
