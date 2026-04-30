@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadSection = document.getElementById('download-section');
     const btnDownloadWord = document.getElementById('btn-download-word');
     const btnDownloadPdf = document.getElementById('btn-download-pdf');
+    const btnShareWhatsapp = document.getElementById('btn-share-whatsapp');
+    const btnShareEmail = document.getElementById('btn-share-email');
     const loader = document.getElementById('loader');
 
     let currentDocData = null;
@@ -132,14 +134,12 @@ ${text}`;
         }
     });
 
-    // ===== WORD DOWNLOAD =====
-    btnDownloadWord.addEventListener('click', () => {
-        if (!currentDocData) return;
-        try {
-            const lib = getDocxLib();
-            if (!lib) throw new Error("Library 'docx' not detected. Please reload.");
+    // ===== WORD BLOB BUILDER =====
+    async function buildWordBlob() {
+        const lib = getDocxLib();
+        if (!lib) throw new Error("Library 'docx' not detected. Please reload.");
 
-            const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = lib;
+        const { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } = lib;
             const theme = getTheme(currentDocData.theme);
             const layout = currentDocData.layout || 'classic';
             const children = [];
@@ -316,15 +316,27 @@ ${text}`;
                 }]
             });
 
-            Packer.toBlob(doc).then(blob => {
-                saveAs(blob, `${(currentDocData.docType || 'Document').replace(/\s+/g, '_')}_Official.docx`);
-            });
+        return await Packer.toBlob(doc);
+    }
+
+    function wordFilename() {
+        return `${(currentDocData?.docType || 'Document').replace(/\s+/g, '_')}_Official.docx`;
+    }
+
+    btnDownloadWord.addEventListener('click', async () => {
+        if (!currentDocData) return;
+        try {
+            const blob = await buildWordBlob();
+            saveAs(blob, wordFilename());
         } catch (e) { alert('Word Error: ' + e.message); }
     });
 
-    // ===== PDF DOWNLOAD =====
-    btnDownloadPdf.addEventListener('click', async () => {
-        if (!currentDocData) return;
+    function pdfFilename() {
+        return `${(currentDocData?.docType || 'Document').replace(/\s+/g, '_')}_Official.pdf`;
+    }
+
+    // Builds an offscreen rendered PDF wrapper and returns a Blob (does not save)
+    async function buildPdfBlob() {
         const theme = getTheme(currentDocData.theme);
         const layout = currentDocData.layout || 'classic';
 
@@ -432,11 +444,62 @@ ${text}`;
         };
 
         try {
-            await html2pdf().set(opt).from(wrap).save();
-        } catch (err) {
-            alert('PDF Error: ' + err.message);
+            const blob = await html2pdf().set(opt).from(wrap).output('blob');
+            return blob;
         } finally {
             if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
         }
+    }
+
+    btnDownloadPdf.addEventListener('click', async () => {
+        if (!currentDocData) return;
+        try {
+            const blob = await buildPdfBlob();
+            saveAs(blob, pdfFilename());
+        } catch (e) { alert('PDF Error: ' + e.message); }
     });
+
+    // ===== SHARE =====
+    async function shareDocument(target) {
+        if (!currentDocData) return;
+        // Prefer PDF for sharing (renders identically on all phones)
+        let blob, filename;
+        try {
+            loader.classList.remove('hidden');
+            blob = await buildPdfBlob();
+            filename = pdfFilename();
+        } catch (e) {
+            loader.classList.add('hidden');
+            alert('Share Error: ' + e.message);
+            return;
+        }
+        loader.classList.add('hidden');
+
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        const shareTitle = currentDocData.title || 'Official Document';
+        const shareText = `${shareTitle}\n\nDrafted with Sanad.`;
+
+        // Web Share API Level 2 (mobile Safari/Chrome) — opens native share sheet
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({ files: [file], title: shareTitle, text: shareText });
+                return;
+            } catch (err) {
+                if (err.name === 'AbortError') return;
+                // fall through to fallback
+            }
+        }
+
+        // Fallback: download the file, then open WhatsApp/Email with a message
+        saveAs(blob, filename);
+        const msg = encodeURIComponent(`${shareText}\n\n(Attach the just-downloaded file: ${filename})`);
+        if (target === 'whatsapp') {
+            window.open(`https://wa.me/?text=${msg}`, '_blank');
+        } else if (target === 'email') {
+            window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${msg}`;
+        }
+    }
+
+    btnShareWhatsapp.addEventListener('click', () => shareDocument('whatsapp'));
+    btnShareEmail.addEventListener('click', () => shareDocument('email'));
 });
